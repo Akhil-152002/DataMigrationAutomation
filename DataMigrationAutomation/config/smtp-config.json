@@ -1,0 +1,9 @@
+{
+    "SMTPServer": "smtp.gmail.com",
+    "Port": 587,
+    "UseSSL": true,
+    "SenderEmail": "reddyk0101@gmail.com",
+    "SenderName": "Windows File Share Migration Team",
+    "Username": "reddyk0101@gmail.com",
+    "Password": "arhv mgqn dtov ffgt"
+}
