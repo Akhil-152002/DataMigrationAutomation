@@ -1,0 +1,248 @@
+#===========================================================
+# Azure DevOps Pipeline
+# Windows File Share Migration Automation
+#===========================================================
+
+trigger: none
+
+pr: none
+
+name: Migration_$(Date:yyyyMMdd)_$(Rev:r)
+
+pool:
+  name: Data migration
+
+############################################################
+# PARAMETERS FROM SERVICENOW
+############################################################
+
+parameters:
+
+- name: MigrationStage
+  displayName: Select Migration Stage
+  type: string
+  default: InitialCopy
+  values:
+    - InitialCopy
+    - Reminder
+    - ApprovalCheck
+    - FinalCopy
+    - Cutover
+    - GenerateReport
+    - CloseTask
+
+- name: BusinessReason
+  type: string
+  default: ""
+
+- name: SourcePath
+  type: string
+  default: ""
+
+- name: Requester
+  type: string
+  default: ""
+
+- name: Email
+  type: string
+  default: ""
+
+- name: DestinationPath
+  type: string
+  default: ""
+
+- name: MigrationDate
+  type: string
+  default: ""
+
+- name: ValidationOwner
+  type: string
+  default: ""
+
+- name: BusinessUnit
+  type: string
+  default: ""
+
+- name: RITM
+  type: string
+  default: ""
+
+- name: SCTASK
+  type: string
+  default: ""
+
+############################################################
+# VARIABLES
+############################################################
+
+variables:
+
+- name: ScriptsFolder
+  value: DataMigrationAutomation/scripts
+
+- name: LogsFolder
+  value: C:\Migration\Logs
+
+- name: ReportsFolder
+  value: C:\Migration\Reports
+
+############################################################
+# STAGES
+############################################################
+
+stages:
+
+- stage: RunMigration
+
+  displayName: Windows File Share Migration
+
+  jobs:
+
+  - job: MigrationJob
+
+    displayName: Execute Migration
+
+    steps:
+
+    - checkout: self
+
+    ########################################################
+    # Show Parameters (Debug)
+    ########################################################
+
+    - task: PowerShell@2
+      displayName: Show Parameters
+      inputs:
+        targetType: inline
+        script: |
+          Write-Host "BusinessReason = ${{ parameters.BusinessReason }}"
+          Write-Host "SourcePath = ${{ parameters.SourcePath }}"
+          Write-Host "Requester = ${{ parameters.Requester }}"
+          Write-Host "Email = ${{ parameters.Email }}"
+          Write-Host "DestinationPath = ${{ parameters.DestinationPath }}"
+          Write-Host "MigrationDate = ${{ parameters.MigrationDate }}"
+          Write-Host "ValidationOwner = ${{ parameters.ValidationOwner }}"
+          Write-Host "BusinessUnit = ${{ parameters.BusinessUnit }}"
+          Write-Host "RITM = ${{ parameters.RITM }}"
+          Write-Host "SCTASK = ${{ parameters.SCTASK }}"
+
+    ########################################################
+    # Get Request
+    ########################################################
+
+    - task: PowerShell@2
+      displayName: Get Migration Request
+      inputs:
+        filePath: '$(ScriptsFolder)/GetRequest.ps1'
+        arguments: >
+          -RITM "${{ parameters.RITM }}"
+          -SCTASK "${{ parameters.SCTASK }}"
+          -BusinessReason "${{ parameters.BusinessReason }}"
+          -SourcePath "${{ parameters.SourcePath }}"
+          -DestinationPath "${{ parameters.DestinationPath }}"
+          -MigrationDate "${{ parameters.MigrationDate }}"
+          -ValidationOwner "${{ parameters.ValidationOwner }}"
+          -Requester "${{ parameters.Requester }}"
+          -Email "${{ parameters.Email }}"
+          -BusinessUnit "${{ parameters.BusinessUnit }}"
+
+    ########################################################
+    # Validate
+    ########################################################
+
+    - task: PowerShell@2
+      displayName: Validate Request
+      inputs:
+        filePath: '$(ScriptsFolder)/Validate.ps1'
+
+    ########################################################
+    # Initial Copy
+    ########################################################
+
+    - task: PowerShell@2
+      displayName: Initial Copy
+      condition: eq('${{ parameters.MigrationStage }}','InitialCopy')
+      inputs:
+        filePath: '$(ScriptsFolder)/InitialCopy.ps1'
+
+    ########################################################
+    # Reminder
+    ########################################################
+
+    - task: PowerShell@2
+      displayName: Reminder Job
+      condition: eq('${{ parameters.MigrationStage }}','Reminder')
+      inputs:
+        filePath: '$(ScriptsFolder)/ReminderJob.ps1'
+
+    ########################################################
+    # Approval Check
+    ########################################################
+
+    - task: PowerShell@2
+      displayName: Approval Check
+      condition: eq('${{ parameters.MigrationStage }}','ApprovalCheck')
+      inputs:
+        filePath: '$(ScriptsFolder)/ApprovalCheck.ps1'
+
+    ########################################################
+    # Final Copy
+    ########################################################
+
+    - task: PowerShell@2
+      displayName: Final Copy
+      condition: eq('${{ parameters.MigrationStage }}','FinalCopy')
+      inputs:
+        filePath: '$(ScriptsFolder)/FinalCopy.ps1'
+
+    ########################################################
+    # Cutover
+    ########################################################
+
+    - task: PowerShell@2
+      displayName: Cutover
+      condition: eq('${{ parameters.MigrationStage }}','Cutover')
+      inputs:
+        filePath: '$(ScriptsFolder)/Cutover.ps1'
+
+    ########################################################
+    # Generate Report
+    ########################################################
+
+    - task: PowerShell@2
+      displayName: Generate Report
+      condition: eq('${{ parameters.MigrationStage }}','GenerateReport')
+      inputs:
+        filePath: '$(ScriptsFolder)/GenerateReport.ps1'
+
+    ########################################################
+    # Close Task
+    ########################################################
+
+    - task: PowerShell@2
+      displayName: Close Task
+      condition: eq('${{ parameters.MigrationStage }}','CloseTask')
+      inputs:
+        filePath: '$(ScriptsFolder)/CloseTask.ps1'
+
+    ########################################################
+    # Publish Logs
+    ########################################################
+
+    - task: PublishBuildArtifacts@1
+      displayName: Publish Logs
+      condition: always()
+      inputs:
+        PathtoPublish: '$(LogsFolder)'
+        ArtifactName: Logs
+
+    ########################################################
+    # Publish Reports
+    ########################################################
+
+    - task: PublishBuildArtifacts@1
+      displayName: Publish Reports
+      condition: always()
+      inputs:
+        PathtoPublish: '$(ReportsFolder)'
+        ArtifactName: Reports
